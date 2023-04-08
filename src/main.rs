@@ -4,22 +4,15 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-macro_rules! get_file_not_found_html {
-    () => {
-        fs::read("./404.html").unwrap()
-    }
-} 
-
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-
+    println!("listening on port 7878");
     for stream in listener.incoming() {
         let stream = stream.unwrap();
 
         handle_connection(stream);
     }
 }
-
 
 fn handle_connection(mut stream: TcpStream) {
     let buf_reader = BufReader::new(&mut stream);
@@ -30,6 +23,9 @@ fn handle_connection(mut stream: TcpStream) {
         .collect();
 
     println!("Request : {:#?}", http_request);
+    if http_request.len() == 0 {
+        return;
+    }
     let mut request_header = http_request[0].split(" ");
 
     if request_header.next() == Some("GET") {
@@ -38,34 +34,35 @@ fn handle_connection(mut stream: TcpStream) {
         let content_type: &str;
         let path = format!(".{file_name}");
         let contents = match fs::read(&path) {
-            Ok(string) => {
+            Ok(bytes) => {
                 status_line = "HTTP/1.1 200 OK";
                 content_type = get_content_type(std::path::Path::new(&path));
-                string
-            },
+                bytes
+            }
             Err(_e) => {
                 status_line = "HTTP/1.1 404 NOT FOUND";
                 content_type = "text/html; charset=UTF-8";
-                get_file_not_found_html!()
-            },
+                include_bytes!("../404.html").to_vec()
+            }
         };
 
         let length = contents.len();
-        
-        let response = format!("{status_line}\r\nContent-Type: {content_type}\nContent-Length: {length}\r\n\r\n");
+
+        let response = format!(
+            "{status_line}\r\nContent-Type: {content_type}\nContent-Length: {length}\r\n\r\n"
+        );
         let response = response.as_bytes();
         let mut response = response.to_vec();
         for byte in contents {
             response.push(byte);
         }
-        
 
-        let _ = stream.write_all(response.as_slice());
+        stream.write_all(response.as_slice()).unwrap();
     }
 }
 
 fn get_content_type(path: &std::path::Path) -> &str {
-    let extension: &str = match path.extension(){
+    let extension: &str = match path.extension() {
         Some(ext) => ext.to_str().unwrap(),
         None => "",
     };
@@ -76,10 +73,10 @@ fn get_content_type(path: &std::path::Path) -> &str {
         "wasm" => "application/wasm",
         "ico" => "image/png",
         "png" => "image/png",
-        "jpg"|"jpeg" => "image/jpeg",
+        "jpg" | "jpeg" => "image/jpeg",
         "svg" => "image/svg+xml",
         "webp" => "image/webp",
         "gif" => "image/gif",
         _ => "",
-    }
+    };
 }
