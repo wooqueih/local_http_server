@@ -1,12 +1,20 @@
 use std::{
-    fs,
+    env, fs,
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
 };
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-    println!("listening on port 7878");
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        println!("Error: a port has to be specified");
+        return;
+    }
+    let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{}", args[1])) else {
+        println!("Error: invalid port");
+        return;
+    };
+    println!("listening on port {}", args[1]);
     for stream in listener.incoming() {
         let stream = stream.unwrap();
 
